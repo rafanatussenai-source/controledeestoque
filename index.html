@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Meu Estoque</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1F6F5C">
+</head>
+<body>
+<div id="app">
+  <div class="topbar" id="topbar">
+    <div class="brand">
+      <div class="brand-mark" id="brandMark">ME</div>
+      <div>
+        <h1 id="appTitleH">Meu Estoque</h1>
+        <div class="date" id="todayLabel"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="icon-btn" onclick="openSearch()" aria-label="Pesquisar">&#128269;</button>
+      <button class="icon-btn" onclick="toggleTheme()" aria-label="Alternar tema" id="themeBtn">&#9789;</button>
+    </div>
+  </div>
+  <main id="view"></main>
+  <button class="fab" id="fabBtn" style="display:none;">+</button>
+  <div class="navbar">
+    <div class="navbar-inner">
+      <button class="nav-item" data-v="dashboard" onclick="setView('dashboard')"><span style="font-size:18px;">&#8962;</span><span>Dashboard</span></button>
+      <button class="nav-item" data-v="estoque" onclick="setView('estoque')"><span style="font-size:18px;">&#128230;</span><span>Estoque</span></button>
+      <button class="nav-item" data-v="financeiro" onclick="setView('financeiro')"><span style="font-size:18px;">&#128176;</span><span>Financeiro</span></button>
+      <button class="nav-item" data-v="relatorios" onclick="setView('relatorios')"><span style="font-size:18px;">&#128203;</span><span>Relatórios</span></button>
+      <button class="nav-item" data-v="config" onclick="setView('config')"><span style="font-size:18px;">&#9881;</span><span>Config</span></button>
+    </div>
+  </div>
+  <div id="modalRoot"></div>
+</div>
+<script src="app.js"></script>
+<script>
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js");
+}
+</script>
+</body>
+</html>

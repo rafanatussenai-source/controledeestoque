@@ -4,7 +4,7 @@ var currentView='dashboard';
 var openLotProduct=null;
 var searchQuery='';
 var estoqueFilter='todos';
-
+ 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
 function todayISO(){var d=new Date();return d.toISOString().slice(0,10);}
 function daysUntil(dateStr){var t=new Date(todayISO()+'T00:00:00');var d=new Date(dateStr+'T00:00:00');return Math.round((d-t)/86400000);}
@@ -13,20 +13,20 @@ function currSymbol(){return state.settings.moeda==='USD'?'US$':state.settings.m
 function fmtMoney(v){v=isFinite(v)?v:0;return currSymbol()+' '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function toast(msg){var t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove();},2200);}
 function esc(s){return (s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-
+ 
 async function loadAll(){
-  try{var p=localStorage.getItem(STORE_PRODUCTS);state.products=p?JSON.parse(p):[];}catch(e){state.products=[];}
-  try{var l=localStorage.getItem(STORE_LOTS);state.lots=l?JSON.parse(l):[];}catch(e){state.lots=[];}
-  try{var m=localStorage.getItem(STORE_MOV);state.movements=m?JSON.parse(m):[];}catch(e){state.movements=[];}
-  try{var s=localStorage.getItem(STORE_SETTINGS);if(s)state.settings=Object.assign(state.settings,JSON.parse(s));}catch(e){}
+  try{var p=await window.storage.get(STORE_PRODUCTS,false);state.products=p?JSON.parse(p.value):[];}catch(e){state.products=[];}
+  try{var l=await window.storage.get(STORE_LOTS,false);state.lots=l?JSON.parse(l.value):[];}catch(e){state.lots=[];}
+  try{var m=await window.storage.get(STORE_MOV,false);state.movements=m?JSON.parse(m.value):[];}catch(e){state.movements=[];}
+  try{var s=await window.storage.get(STORE_SETTINGS,false);if(s)state.settings=Object.assign(state.settings,JSON.parse(s.value));}catch(e){}
   applyTheme();
   render();
 }
-async function saveProducts(){try{localStorage.setItem(STORE_PRODUCTS,JSON.stringify(state.products));}catch(e){toast('Erro ao salvar produtos');}}
-async function saveLots(){try{localStorage.setItem(STORE_LOTS,JSON.stringify(state.lots));}catch(e){toast('Erro ao salvar lotes');}}
-async function saveMovements(){try{localStorage.setItem(STORE_MOV,JSON.stringify(state.movements));}catch(e){toast('Erro ao salvar histórico');}}
-async function saveSettings(){try{localStorage.setItem(STORE_SETTINGS,JSON.stringify(state.settings));}catch(e){toast('Erro ao salvar config');}}
-
+async function saveProducts(){try{await window.storage.set(STORE_PRODUCTS,JSON.stringify(state.products),false);}catch(e){toast('Erro ao salvar produtos');}}
+async function saveLots(){try{await window.storage.set(STORE_LOTS,JSON.stringify(state.lots),false);}catch(e){toast('Erro ao salvar lotes');}}
+async function saveMovements(){try{await window.storage.set(STORE_MOV,JSON.stringify(state.movements),false);}catch(e){toast('Erro ao salvar histórico');}}
+async function saveSettings(){try{await window.storage.set(STORE_SETTINGS,JSON.stringify(state.settings),false);}catch(e){toast('Erro ao salvar config');}}
+ 
 function applyTheme(){
   document.body.setAttribute('data-theme', state.settings.tema==='escuro'?'dark':'light');
   document.getElementById('themeBtn').innerHTML = state.settings.tema==='escuro' ? '&#9728;' : '&#9789;';
@@ -36,16 +36,16 @@ function applyTheme(){
   document.getElementById('todayLabel').textContent = new Date().toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'});
 }
 function toggleTheme(){state.settings.tema = state.settings.tema==='escuro'?'claro':'escuro';applyTheme();saveSettings();}
-
+ 
 function productLots(pid){return state.lots.filter(function(l){return l.productId===pid;});}
 function activeLotsFEFO(pid){return productLots(pid).filter(function(l){return l.quantidade>0;}).sort(function(a,b){return a.dataValidade<b.dataValidade?-1:1;});}
 function productQty(pid){return productLots(pid).reduce(function(s,l){return s+l.quantidade;},0);}
 function nearestExpiry(pid){var lots=activeLotsFEFO(pid);return lots.length?lots[0].dataValidade:null;}
 function expiryStatus(dateStr){if(!dateStr)return 'ok';var d=daysUntil(dateStr);if(d<0)return 'danger';if(d<=7)return 'warn';return 'ok';}
 function statusLabel(dateStr){if(!dateStr)return 'Sem validade';var d=daysUntil(dateStr);if(d<0)return 'Vencido há '+Math.abs(d)+'d';if(d===0)return 'Vence hoje';return 'Vence em '+d+'d';}
-
+ 
 function setView(v){currentView=v;document.querySelectorAll('.nav-item').forEach(function(n){n.classList.toggle('active',n.dataset.v===v);});document.getElementById('view').scrollTop=0;window.scrollTo(0,0);render();}
-
+ 
 function render(){
   var v=document.getElementById('view');
   var fab=document.getElementById('fabBtn');
@@ -57,7 +57,7 @@ function render(){
   else if(currentView==='relatorios'){v.innerHTML=renderRelatorios();}
   else if(currentView==='config'){v.innerHTML=renderConfig();}
 }
-
+ 
 function renderDashboard(){
   var totalProdutos=state.products.length;
   var totalQtd=state.lots.reduce(function(s,l){return s+l.quantidade;},0);
@@ -77,7 +77,7 @@ function renderDashboard(){
   var totGasto=state.lots.reduce(function(s,l){return s+l.valorCompra;},0);
   var valorPerdido=state.movements.filter(function(m){return m.type==='saida'&&m.motivo==='perda';}).reduce(function(s,m){return s+m.valor;},0);
   var lucro=totVendido-totGasto-valorPerdido;
-
+ 
   var alertsHtml='';
   var allAlerts=vencidos.map(function(l){return {lot:l,st:'danger'};}).concat(proximos.map(function(l){return {lot:l,st:'warn'};}));
   if(allAlerts.length===0 && baixos.length===0){
@@ -91,7 +91,7 @@ function renderDashboard(){
       alertsHtml+='<div class="alert-row"><span class="dot warn"></span><div class="txt"><div class="n">'+esc(p.nome)+'</div><div class="s">Estoque baixo &middot; '+productQty(p.id)+' '+esc(p.unidade)+'</div></div></div>';
     });
   }
-
+ 
   return ''+
   '<div class="grid2 section-title" style="margin-top:8px;"></div>'+
   '<div class="grid2">'+
@@ -115,7 +115,7 @@ function renderDashboard(){
   '<div class="card">'+alertsHtml+'</div>';
 }
 function metric(label,value,cls){return '<div class="metric"><div class="label">'+label+'</div><div class="value '+(cls||'')+'">'+value+'</div></div>';}
-
+ 
 function drawDashboardChart(){
   var el=document.getElementById('dashChart');if(!el||typeof Chart==='undefined')return;
   var days=[],entradas=[],saidas=[];
@@ -133,7 +133,7 @@ function drawDashboardChart(){
     {label:'Saídas',data:saidas,backgroundColor:'#D64545',borderRadius:4}
   ]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{precision:0}}},plugins:{legend:{display:true,position:'top',labels:{boxWidth:10,font:{size:11}}}}}});
 }
-
+ 
 function renderEstoque(){
   var filtered=state.products.filter(function(p){
     var q=searchQuery.toLowerCase();
@@ -145,6 +145,7 @@ function renderEstoque(){
     return true;
   });
   var html='<div class="searchbar"><input id="estoqueSearch" placeholder="Buscar por nome, categoria, lote..." value="'+esc(searchQuery)+'" oninput="searchQuery=this.value;render();"></div>';
+  html+='<button class="btn btn-outline-accent" style="margin-bottom:12px;" onclick="openScanNota()">&#128247; Escanear nota fiscal</button>';
   html+='<div class="chip-row">'+
     chip('todos','Todos')+chip('baixo','Estoque baixo')+chip('vencendo','Vencendo')+chip('vencido','Vencidos')+
   '</div>';
@@ -156,7 +157,7 @@ function renderEstoque(){
   return html;
 }
 function chip(val,label){return '<div class="chip '+(estoqueFilter===val?'active':'')+'" onclick="estoqueFilter=\''+val+'\';render();">'+label+'</div>';}
-
+ 
 function renderProductCard(p){
   var q=productQty(p.id);
   var exp=nearestExpiry(p.id);
@@ -187,9 +188,9 @@ function renderProductCard(p){
   html+='</div>';
   return html;
 }
-
+ 
 function openSearch(){setView('estoque');setTimeout(function(){var el=document.getElementById('estoqueSearch');if(el)el.focus();},50);}
-
+ 
 function openModal(title,bodyHtml){
   var root=document.getElementById('modalRoot');
   root.innerHTML='<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal">'+
@@ -198,25 +199,27 @@ function openModal(title,bodyHtml){
   '</div></div>';
 }
 function closeModal(){document.getElementById('modalRoot').innerHTML='';}
-
-function openProductForm(pid){
+ 
+function openProductForm(pid,prefill){
   var p=pid?state.products.find(function(x){return x.id===pid;}):null;
+  var pf=prefill||{};
   var loteFields='';
   if(!p){
     loteFields=
     '<label>Número do lote *</label><input id="f_lote_num" placeholder="Ex: L-001, impresso na embalagem">'+
-    '<div class="row2"><div><label>Quantidade inicial *</label><input id="f_lote_qtd" type="number" min="0" step="0.01"></div>'+
-    '<div><label>Valor de compra (total do lote)</label><input id="f_lote_valor" type="number" min="0" step="0.01"></div></div>'+
+    '<div class="row2"><div><label>Quantidade inicial *</label><input id="f_lote_qtd" type="number" min="0" step="0.01" value="'+(pf.quantidade||'')+'"></div>'+
+    '<div><label>Valor de compra (total do lote)</label><input id="f_lote_valor" type="number" min="0" step="0.01" value="'+(pf.valorTotalLote||'')+'"></div></div>'+
     '<div class="row2"><div><label>Data de fabricação *</label><input id="f_lote_fab" type="date"></div>'+
     '<div><label>Data de validade *</label><input id="f_lote_val" type="date"></div></div>';
   }
   var body='<div id="prodForm">'+
-    '<label>Nome do produto *</label><input id="f_nome" value="'+esc(p?p.nome:'')+'" placeholder="Ex: Arroz 5kg">'+
-    '<div class="row2"><div><label>Categoria</label><input id="f_categoria" value="'+esc(p?p.categoria:'')+'" placeholder="Ex: Grãos"></div>'+
-    '<div><label>Marca</label><input id="f_marca" value="'+esc(p?p.marca:'')+'" placeholder="Opcional"></div></div>'+
-    '<div class="row2"><div><label>Unidade de medida</label><input id="f_unidade" value="'+esc(p?p.unidade:'un')+'" placeholder="un, kg, L..."></div>'+
+    (prefill?'<div class="help-note">Dados lidos da nota — confira antes de salvar e complete o que faltar.</div>':'')+
+    '<label>Nome do produto *</label><input id="f_nome" value="'+esc(p?p.nome:(pf.nome||''))+'" placeholder="Ex: Arroz 5kg">'+
+    '<div class="row2"><div><label>Categoria</label><input id="f_categoria" value="'+esc(p?p.categoria:(pf.categoria||''))+'" placeholder="Ex: Grãos"></div>'+
+    '<div><label>Marca</label><input id="f_marca" value="'+esc(p?p.marca:(pf.marca||''))+'" placeholder="Opcional"></div></div>'+
+    '<div class="row2"><div><label>Unidade de medida</label><input id="f_unidade" value="'+esc(p?p.unidade:(pf.unidade||'un'))+'" placeholder="un, kg, L..."></div>'+
     '<div><label>Estoque mínimo</label><input id="f_min" type="number" min="0" value="'+(p?p.estoqueMinimo:state.settings.estoqueMinimoPadrao)+'"></div></div>'+
-    '<div class="row2"><div><label>Preço de compra (unitário)</label><input id="f_pcompra" type="number" min="0" step="0.01" value="'+(p?p.precoCompra:'')+'"></div>'+
+    '<div class="row2"><div><label>Preço de compra (unitário)</label><input id="f_pcompra" type="number" min="0" step="0.01" value="'+(p?p.precoCompra:(pf.precoCompra||''))+'"></div>'+
     '<div><label>Preço de venda</label><input id="f_pvenda" type="number" min="0" step="0.01" value="'+(p?p.precoVenda:'')+'"></div></div>'+
     '<label>Código de barras</label><input id="f_codigo" value="'+esc(p?p.codigoBarras:'')+'" placeholder="Opcional — digite ou leia manualmente">'+
     (p?'':'<div class="section-title" style="margin:16px 0 6px;">Primeiro lote deste produto</div>'+loteFields)+
@@ -283,7 +286,92 @@ async function deleteProduct(pid){
   await saveProducts();await saveLots();
   closeModal();render();toast('Produto excluído');
 }
-
+ 
+var scannedItems=[];
+function openScanNota(){
+  var body='<div id="scanArea">'+
+    '<div class="help-note">Tire uma foto da nota fiscal ou recibo de compra. A IA vai identificar os produtos, quantidades e valores — preço de venda, lote, fabricação e validade você completa depois, item por item.</div>'+
+    '<div class="photo-input" style="margin-top:10px;"><div class="photo-preview" id="notaPreview" style="width:64px;height:64px;">&#128247;</div>'+
+    '<input type="file" accept="image/*" capture="environment" id="notaFile" style="width:auto;flex:1;"></div>'+
+    '<button class="btn btn-accent" style="margin-top:16px;" id="notaAnalyzeBtn" onclick="analyzeNota()" disabled>Analisar nota</button>'+
+    '<div id="scanResult"></div>'+
+    '</div>';
+  openModal('Escanear nota fiscal',body);
+  window._notaImageData=null;
+  document.getElementById('notaFile').onchange=function(e){
+    var file=e.target.files[0];if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      window._notaImageData=ev.target.result;
+      document.getElementById('notaPreview').innerHTML='<img src="'+window._notaImageData+'">';
+      document.getElementById('notaAnalyzeBtn').disabled=false;
+    };
+    reader.readAsDataURL(file);
+  };
+}
+async function analyzeNota(){
+  if(!window._notaImageData){toast('Selecione uma foto primeiro');return;}
+  var btn=document.getElementById('notaAnalyzeBtn');
+  btn.disabled=true;btn.textContent='Analisando nota...';
+  document.getElementById('scanResult').innerHTML='';
+  try{
+    var parts=window._notaImageData.split(',');
+    var mediaType=parts[0].match(/data:(.*);base64/)[1];
+    var base64Data=parts[1];
+    var response=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:1000,
+        messages:[{
+          role:'user',
+          content:[
+            {type:'image',source:{type:'base64',media_type:mediaType,data:base64Data}},
+            {type:'text',text:'Esta imagem é uma nota fiscal ou recibo de compra. Extraia os itens/produtos comprados. Responda APENAS com um JSON válido (sem markdown, sem texto antes ou depois), no formato: [{"nome":"string","quantidade":number,"valorUnitario":number,"unidade":"un/kg/L/etc","marca":"string ou vazio","categoria":"string ou vazio"}]. Se não conseguir identificar algum campo, use string vazia ou 0. Se a imagem não parecer uma nota fiscal, responda com um array vazio [].'}
+          ]
+        }]
+      })
+    });
+    var data=await response.json();
+    var textOut=(data.content||[]).map(function(b){return b.text||'';}).join('');
+    var clean=textOut.replace(/```json|```/g,'').trim();
+    var items=JSON.parse(clean);
+    if(!Array.isArray(items))items=[];
+    scannedItems=items;
+    renderScanResults();
+  }catch(err){
+    document.getElementById('scanResult').innerHTML='<div class="help-note">Não consegui ler a nota automaticamente. Tente uma foto mais nítida, com boa luz, ou cadastre o produto manualmente.</div>';
+  }
+  btn.disabled=false;btn.textContent='Analisar nota';
+}
+function renderScanResults(){
+  var el=document.getElementById('scanResult');
+  if(scannedItems.length===0){
+    el.innerHTML='<div class="help-note">Nenhum item identificado nessa imagem. Tente novamente com uma foto mais nítida.</div>';
+    return;
+  }
+  var html='<div class="section-title">Itens encontrados — toque para cadastrar</div>';
+  scannedItems.forEach(function(it,i){
+    html+='<div class="alert-row"><span class="dot ok"></span><div class="txt"><div class="n">'+esc(it.nome||'Item sem nome')+'</div><div class="s">'+(it.quantidade||0)+' '+esc(it.unidade||'un')+' &middot; '+fmtMoney(it.valorUnitario||0)+' cada</div></div>'+
+    '<button class="btn btn-outline-accent" style="width:auto;padding:7px 12px;font-size:12px;" onclick="useScannedItem('+i+')">Adicionar</button></div>';
+  });
+  el.innerHTML=html;
+}
+function useScannedItem(i){
+  var it=scannedItems[i];
+  closeModal();
+  openProductForm(null,{
+    nome:it.nome||'',
+    marca:it.marca||'',
+    categoria:it.categoria||'',
+    unidade:it.unidade||'un',
+    precoCompra:it.valorUnitario||0,
+    quantidade:it.quantidade||'',
+    valorTotalLote:it.valorUnitario&&it.quantidade?(it.valorUnitario*it.quantidade).toFixed(2):''
+  });
+}
+ 
 function openEntradaForm(pid){
   var p=state.products.find(function(x){return x.id===pid;});
   var body='<div>'+
@@ -318,7 +406,7 @@ async function saveEntrada(pid){
   await saveLots();await saveMovements();
   closeModal();render();toast('Entrada registrada');
 }
-
+ 
 function openSaidaForm(pid){
   var p=state.products.find(function(x){return x.id===pid;});
   var q=productQty(p.id);
@@ -354,14 +442,14 @@ async function saveSaida(pid){
   await saveLots();await saveMovements();
   closeModal();render();toast('Saída registrada');
 }
-
+ 
 function renderFinanceiro(){
   var totVendido=state.movements.filter(function(m){return m.type==='saida'&&m.motivo==='venda';}).reduce(function(s,m){return s+m.valor;},0);
   var totGasto=state.lots.reduce(function(s,l){return s+l.valorCompra;},0);
   var valorPerdido=state.movements.filter(function(m){return m.type==='saida'&&m.motivo==='perda';}).reduce(function(s,m){return s+m.valor;},0);
   var lucro=totVendido-totGasto-valorPerdido;
   var perdas=state.movements.filter(function(m){return m.type==='saida'&&m.motivo==='perda';}).sort(function(a,b){return b.timestamp-a.timestamp;});
-
+ 
   var html='<div class="grid2">'+
     metric('Total vendido',fmtMoney(totVendido),'ok')+
     metric('Total gasto (compras)',fmtMoney(totGasto),'')+
@@ -421,7 +509,7 @@ function drawFinanceCharts(){
     }
   }
 }
-
+ 
 var relatorioTab='historico';
 function renderRelatorios(){
   var html='<div class="tabs">'+
@@ -486,7 +574,7 @@ function exportCSV(){
   URL.revokeObjectURL(url);
   toast('CSV exportado');
 }
-
+ 
 function renderConfig(){
   var s=state.settings;
   var html='<div class="card">'+
@@ -548,5 +636,5 @@ document.addEventListener('change',function(e){
     reader.readAsText(file);
   }
 });
-
+ 
 loadAll();

@@ -1,5 +1,5 @@
 {
-  "name": "Meu Estoque",
+   "name": "Meu Estoque",
   "short_name": "Estoque",
   "start_url": "./",
   "display": "standalone",

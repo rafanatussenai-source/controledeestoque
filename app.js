@@ -1,3 +1,4 @@
+if(typeof pdfjsLib!=='undefined'){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}
 var STORE_PRODUCTS='estoque:products', STORE_LOTS='estoque:lots', STORE_MOV='estoque:movements', STORE_SETTINGS='estoque:settings';
 var state={products:[],lots:[],movements:[],settings:{alertDays:[30,15,7,3,1],estoqueMinimoPadrao:5,tema:'claro',nomeUsuario:'',moeda:'BRL'}};
 var currentView='dashboard';
@@ -290,7 +291,7 @@ async function deleteProduct(pid){
 var scannedItems=[];
 function openScanNota(){
   var body='<div id="scanArea">'+
-    '<div class="help-note">Tire uma foto ou escolha um arquivo (PDF ou imagem) da nota fiscal/recibo de compra. A IA vai identificar os produtos, quantidades e valores — preço de venda, lote, fabricação e validade você completa depois, item por item.</div>'+
+    '<div class="help-note">Tire uma foto ou escolha um arquivo (PDF ou imagem) da nota fiscal/recibo de compra. Por padrão, a leitura é feita por OCR gratuito no seu navegador; se você configurar uma chave de IA em Configurações, a leitura fica mais precisa. Preço de venda, lote, fabricação e validade você completa depois, item por item.</div>'+
     '<div class="photo-input" style="margin-top:10px;"><div class="photo-preview" id="notaPreview" style="width:64px;height:64px;">&#128247;</div>'+
     '<div style="flex:1;display:flex;flex-direction:column;gap:8px;">'+
     '<button class="btn" onclick="document.getElementById(\'notaCam\').click()">&#128247; Tirar foto</button>'+
@@ -325,8 +326,18 @@ function openScanNota(){
 async function analyzeNota(){
   if(!window._notaImageData){toast('Selecione uma foto ou arquivo primeiro');return;}
   var btn=document.getElementById('notaAnalyzeBtn');
-  btn.disabled=true;btn.textContent='Analisando nota...';
+  btn.disabled=true;
   document.getElementById('scanResult').innerHTML='';
+  if(state.settings.apiKey){
+    btn.textContent='Analisando nota (IA)...';
+    await analyzeNotaComIA();
+  }else{
+    btn.textContent='Lendo nota (OCR grátis)...';
+    await analyzeNotaGratis();
+  }
+  btn.disabled=false;btn.textContent='Analisar nota';
+}
+async function analyzeNotaComIA(){
   try{
     var parts=window._notaImageData.split(',');
     var mediaType=parts[0].match(/data:(.*);base64/)[1];
@@ -337,7 +348,12 @@ async function analyzeNota(){
       :{type:'image',source:{type:'base64',media_type:mediaType,data:base64Data}};
     var response=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':state.settings.apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
       body:JSON.stringify({
         model:'claude-sonnet-4-6',
         max_tokens:1000,
@@ -351,29 +367,96 @@ async function analyzeNota(){
       })
     });
     var data=await response.json();
+    if(!response.ok){
+      var apiMsg=(data&&data.error&&data.error.message)?data.error.message:('Erro HTTP '+response.status);
+      document.getElementById('scanResult').innerHTML='<div class="help-note">A IA retornou um erro: '+esc(apiMsg)+'</div>';
+      return;
+    }
     var textOut=(data.content||[]).map(function(b){return b.text||'';}).join('');
     var clean=textOut.replace(/```json|```/g,'').trim();
-    var items=JSON.parse(clean);
+    var items;
+    try{ items=JSON.parse(clean); }
+    catch(parseErr){
+      document.getElementById('scanResult').innerHTML='<div class="help-note">A IA respondeu, mas não em um formato que consegui entender. Resposta recebida: '+esc(clean.slice(0,300))+'</div>';
+      return;
+    }
     if(!Array.isArray(items))items=[];
     scannedItems=items;
-    renderScanResults();
+    renderScanResults(false);
   }catch(err){
-    document.getElementById('scanResult').innerHTML='<div class="help-note">Não consegui ler a nota automaticamente. Tente um arquivo mais nítido/legível, ou cadastre o produto manualmente.</div>';
+    document.getElementById('scanResult').innerHTML='<div class="help-note">Falha de conexão ao chamar a IA: '+esc(err.message||String(err))+'. Verifique sua internet e a chave de API em Configurações.</div>';
   }
-  btn.disabled=false;btn.textContent='Analisar nota';
 }
-function renderScanResults(){
+async function getImageDataForOCR(){
+  var parts=window._notaImageData.split(',');
+  var mediaType=parts[0].match(/data:(.*);base64/)[1];
+  if(mediaType!=='application/pdf'){
+    return window._notaImageData;
+  }
+  if(typeof pdfjsLib==='undefined')throw new Error('Leitor de PDF não carregou. Verifique sua internet.');
+  var base64Data=parts[1];
+  var binary=atob(base64Data);
+  var bytes=new Uint8Array(binary.length);
+  for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+  var pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+  var page=await pdf.getPage(1);
+  var viewport=page.getViewport({scale:2});
+  var canvas=document.createElement('canvas');
+  canvas.width=viewport.width;canvas.height=viewport.height;
+  await page.render({canvasContext:canvas.getContext('2d'),viewport:viewport}).promise;
+  return canvas.toDataURL('image/png');
+}
+async function analyzeNotaGratis(){
+  try{
+    if(typeof Tesseract==='undefined'){
+      document.getElementById('scanResult').innerHTML='<div class="help-note">O leitor de texto gratuito não carregou. Verifique sua internet e tente novamente.</div>';
+      return;
+    }
+    var imgData=await getImageDataForOCR();
+    var result=await Tesseract.recognize(imgData,'por',{});
+    var text=(result&&result.data&&result.data.text)?result.data.text:'';
+    scannedItems=parseNotaTextHeuristico(text);
+    window._lastOcrText=text;
+    renderScanResults(true);
+  }catch(err){
+    document.getElementById('scanResult').innerHTML='<div class="help-note">Não consegui ler o arquivo com o OCR gratuito: '+esc(err.message||String(err))+'. Tente uma foto mais nítida, com boa luz, ou cadastre manualmente.</div>';
+  }
+}
+function parseNotaTextHeuristico(text){
+  var lines=text.split('\n').map(function(l){return l.trim();}).filter(function(l){return l.length>3;});
+  var items=[];
+  var priceRe=/(\d{1,3}(?:\.\d{3})*,\d{2})/;
+  var qtyRe=/(?:^|\s)(\d+(?:[.,]\d+)?)\s*(?:UN|UND|KG|CX|PC|X)\b/i;
+  lines.forEach(function(line){
+    var pm=line.match(priceRe);
+    if(!pm)return;
+    var valor=parseFloat(pm[1].replace(/\./g,'').replace(',','.'));
+    if(!valor||valor<=0)return;
+    var qtyM=line.match(qtyRe);
+    var qtd=qtyM?parseFloat(qtyM[1].replace(',','.')):1;
+    var nome=line.replace(priceRe,'').replace(qtyRe,'').replace(/[-–—:]+$/,'').trim();
+    if(nome.length<2)nome='Item da nota';
+    items.push({nome:nome.slice(0,60),quantidade:qtd,valorUnitario:valor,unidade:'un',marca:'',categoria:''});
+  });
+  return items;
+}
+function renderScanResults(isGratis){
   var el=document.getElementById('scanResult');
+  var ocrNote=isGratis?'<div class="help-note">Leitura gratuita por OCR: menos precisa que a IA paga, os valores abaixo são só uma sugestão — confira tudo antes de salvar. '+(window._lastOcrText?'<span style="text-decoration:underline;cursor:pointer;" onclick="toggleOcrText()">Ver texto lido</span>':'')+'<div id="ocrTextBox" style="display:none;white-space:pre-wrap;font-family:var(--font-mono);font-size:11px;margin-top:8px;max-height:160px;overflow-y:auto;">'+esc(window._lastOcrText||'')+'</div></div>':'';
   if(scannedItems.length===0){
-    el.innerHTML='<div class="help-note">Nenhum item identificado nessa imagem. Tente novamente com uma foto mais nítida.</div>';
+    el.innerHTML=ocrNote+'<div class="help-note">Nenhum item identificado automaticamente. '+(isGratis?'Veja o texto lido acima e cadastre manualmente.':'Tente novamente com um arquivo mais nítido.')+'</div>';
     return;
   }
-  var html='<div class="section-title">Itens encontrados — toque para cadastrar</div>';
+  var html=ocrNote+'<div class="section-title">Itens encontrados — toque para cadastrar</div>';
   scannedItems.forEach(function(it,i){
     html+='<div class="alert-row"><span class="dot ok"></span><div class="txt"><div class="n">'+esc(it.nome||'Item sem nome')+'</div><div class="s">'+(it.quantidade||0)+' '+esc(it.unidade||'un')+' &middot; '+fmtMoney(it.valorUnitario||0)+' cada</div></div>'+
     '<button class="btn btn-outline-accent" style="width:auto;padding:7px 12px;font-size:12px;" onclick="useScannedItem('+i+')">Adicionar</button></div>';
   });
   el.innerHTML=html;
+}
+function toggleOcrText(){
+  var b=document.getElementById('ocrTextBox');
+  if(b)b.style.display=b.style.display==='none'?'block':'none';
 }
 function useScannedItem(i){
   var it=scannedItems[i];
@@ -608,6 +691,11 @@ function renderConfig(){
     '<div class="settings-row"><div class="l"><div class="t">Modo escuro</div><div class="d">Alterna o tema do aplicativo</div></div>'+
     '<label class="switch"><input type="checkbox" id="c_tema" '+(s.tema==='escuro'?'checked':'')+'><span class="slider-tg"></span></label></div>'+
   '</div>'+
+  '<div class="card">'+
+    '<div class="card-title">Escaneamento de notas por IA (opcional)</div>'+
+    '<p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 8px;">Por padrão, o escaneamento de notas usa OCR gratuito no navegador (sem custo, sem cadastro). Se quiser leitura mais precisa (entende produto/quantidade/preço mesmo em notas bagunçadas), cole aqui uma chave paga de API da Anthropic (console.anthropic.com). Deixe em branco para continuar no modo gratuito.</p>'+
+    '<label>Chave de API (começa com sk-ant-)</label><input id="c_apikey" type="password" value="'+esc(s.apiKey||'')+'" placeholder="sk-ant-...">'+
+  '</div>'+
   '<button class="btn btn-accent" onclick="saveConfig()">Salvar configurações</button>'+
   '<div class="section-title">Backup</div>'+
   '<div class="card">'+
@@ -625,6 +713,7 @@ async function saveConfig(){
   state.settings.estoqueMinimoPadrao=parseFloat(document.getElementById('c_min').value)||0;
   state.settings.alertDays=document.getElementById('c_dias').value.split(',').map(function(x){return parseInt(x.trim());}).filter(function(x){return !isNaN(x);});
   state.settings.tema=document.getElementById('c_tema').checked?'escuro':'claro';
+  state.settings.apiKey=document.getElementById('c_apikey').value.trim();
   await saveSettings();
   applyTheme();
   toast('Configurações salvas');
@@ -653,5 +742,7 @@ document.addEventListener('change',function(e){
     reader.readAsText(file);
   }
 });
+
+loadAll();
 
 loadAll();

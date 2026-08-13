@@ -290,34 +290,40 @@ async function deleteProduct(pid){
 var scannedItems=[];
 function openScanNota(){
   var body='<div id="scanArea">'+
-    '<div class="help-note">Envie uma foto ou um PDF da nota fiscal/recibo de compra. A IA vai identificar os produtos, quantidades e valores — preço de venda, lote, fabricação e validade você completa depois, item por item.</div>'+
+    '<div class="help-note">Tire uma foto ou escolha um arquivo (PDF ou imagem) da nota fiscal/recibo de compra. A IA vai identificar os produtos, quantidades e valores — preço de venda, lote, fabricação e validade você completa depois, item por item.</div>'+
     '<div class="photo-input" style="margin-top:10px;"><div class="photo-preview" id="notaPreview" style="width:64px;height:64px;">&#128247;</div>'+
-    '<input type="file" accept="image/*,application/pdf" id="notaFile" style="width:auto;flex:1;"></div>'+
+    '<div style="flex:1;display:flex;flex-direction:column;gap:8px;">'+
+    '<button class="btn" onclick="document.getElementById(\'notaCam\').click()">&#128247; Tirar foto</button>'+
+    '<button class="btn" onclick="document.getElementById(\'notaFile\').click()">&#128196; Escolher arquivo (PDF/imagem)</button>'+
+    '</div></div>'+
+    '<input type="file" accept="image/*" capture="environment" id="notaCam" style="display:none;">'+
+    '<input type="file" accept="image/*,application/pdf,.pdf" id="notaFile" style="display:none;">'+
     '<div id="notaFileName" style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;"></div>'+
     '<button class="btn btn-accent" style="margin-top:16px;" id="notaAnalyzeBtn" onclick="analyzeNota()" disabled>Analisar nota</button>'+
     '<div id="scanResult"></div>'+
     '</div>';
   openModal('Escanear nota fiscal',body);
   window._notaImageData=null;
-  document.getElementById('notaFile').onchange=function(e){
-    var file=e.target.files[0];if(!file)return;
+  function handleFile(file){
+    if(!file)return;
     var reader=new FileReader();
     reader.onload=function(ev){
       window._notaImageData=ev.target.result;
       if(file.type==='application/pdf'){
         document.getElementById('notaPreview').innerHTML='&#128196;';
-        document.getElementById('notaFileName').textContent=file.name;
       }else{
         document.getElementById('notaPreview').innerHTML='<img src="'+window._notaImageData+'">';
-        document.getElementById('notaFileName').textContent=file.name;
       }
+      document.getElementById('notaFileName').textContent=file.name;
       document.getElementById('notaAnalyzeBtn').disabled=false;
     };
     reader.readAsDataURL(file);
-  };
+  }
+  document.getElementById('notaCam').onchange=function(e){handleFile(e.target.files[0]);};
+  document.getElementById('notaFile').onchange=function(e){handleFile(e.target.files[0]);};
 }
 async function analyzeNota(){
-  if(!window._notaImageData){toast('Selecione uma foto ou PDF primeiro');return;}
+  if(!window._notaImageData){toast('Selecione uma foto ou arquivo primeiro');return;}
   var btn=document.getElementById('notaAnalyzeBtn');
   btn.disabled=true;btn.textContent='Analisando nota...';
   document.getElementById('scanResult').innerHTML='';

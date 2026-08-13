@@ -1,11 +1,10 @@
 {
   "name": "Meu Estoque",
   "short_name": "Estoque",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1F6F5C",
-  "orientation": "portrait",
   "icons": [
     {
       "src": "icons/icon-192.png",

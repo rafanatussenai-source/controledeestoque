@@ -137,7 +137,7 @@ function drawDashboardChart(){
 function renderEstoque(){
   var filtered=state.products.filter(function(p){
     var q=searchQuery.toLowerCase();
-    var matchQ=!q || p.nome.toLowerCase().indexOf(q)>-1 || (p.categoria||'').toLowerCase().indexOf(q)>-1 || (p.codigoBarras||'').toLowerCase().indexOf(q)>-1 || productLots(p.id).some(function(l){return l.numero.toLowerCase().indexOf(q)>-1;});
+    var matchQ=!q || p.nome.toLowerCase().indexOf(q)>-1 || (p.categoria||'').toLowerCase().indexOf(q)>-1 || productLots(p.id).some(function(l){return l.numero.toLowerCase().indexOf(q)>-1;});
     if(!matchQ)return false;
     if(estoqueFilter==='baixo') return productQty(p.id)<=p.estoqueMinimo;
     if(estoqueFilter==='vencendo') return activeLotsFEFO(p.id).some(function(l){var d=daysUntil(l.dataValidade);return d<=7&&d>=0;});
@@ -220,7 +220,6 @@ function openProductForm(pid,prefill){
     '<div><label>Estoque mínimo</label><input id="f_min" type="number" min="0" value="'+(p?p.estoqueMinimo:state.settings.estoqueMinimoPadrao)+'"></div></div>'+
     '<div class="row2"><div><label>Preço de compra (unitário)</label><input id="f_pcompra" type="number" min="0" step="0.01" value="'+(p?p.precoCompra:(pf.precoCompra||''))+'"></div>'+
     '<div><label>Preço de venda</label><input id="f_pvenda" type="number" min="0" step="0.01" value="'+(p?p.precoVenda:'')+'"></div></div>'+
-    '<label>Código de barras</label><input id="f_codigo" value="'+esc(p?p.codigoBarras:'')+'" placeholder="Opcional — digite ou leia manualmente">'+
     (p?'':'<div class="section-title" style="margin:16px 0 6px;">Primeiro lote deste produto</div>'+loteFields)+
     '<label>Foto do produto</label>'+
     '<div class="photo-input"><div class="photo-preview" id="photoPreview">'+(p&&p.foto?'<img src="'+p.foto+'">':'&#128247;')+'</div><input type="file" accept="image/*" id="f_foto" style="width:auto;flex:1;"></div>'+
@@ -250,7 +249,6 @@ async function saveProductForm(pid){
     estoqueMinimo:parseFloat(document.getElementById('f_min').value)||0,
     precoCompra:parseFloat(document.getElementById('f_pcompra').value)||0,
     precoVenda:parseFloat(document.getElementById('f_pvenda').value)||0,
-    codigoBarras:document.getElementById('f_codigo').value.trim(),
     observacoes:document.getElementById('f_obs').value.trim(),
     foto:window._pendingPhoto?window._pendingPhoto():null
   };

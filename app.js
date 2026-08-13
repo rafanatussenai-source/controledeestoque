@@ -4,7 +4,7 @@ var currentView='dashboard';
 var openLotProduct=null;
 var searchQuery='';
 var estoqueFilter='todos';
- 
+
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
 function todayISO(){var d=new Date();return d.toISOString().slice(0,10);}
 function daysUntil(dateStr){var t=new Date(todayISO()+'T00:00:00');var d=new Date(dateStr+'T00:00:00');return Math.round((d-t)/86400000);}
@@ -13,7 +13,7 @@ function currSymbol(){return state.settings.moeda==='USD'?'US$':state.settings.m
 function fmtMoney(v){v=isFinite(v)?v:0;return currSymbol()+' '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function toast(msg){var t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove();},2200);}
 function esc(s){return (s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
- 
+
 async function loadAll(){
   try{var p=await window.storage.get(STORE_PRODUCTS,false);state.products=p?JSON.parse(p.value):[];}catch(e){state.products=[];}
   try{var l=await window.storage.get(STORE_LOTS,false);state.lots=l?JSON.parse(l.value):[];}catch(e){state.lots=[];}
@@ -26,7 +26,7 @@ async function saveProducts(){try{await window.storage.set(STORE_PRODUCTS,JSON.s
 async function saveLots(){try{await window.storage.set(STORE_LOTS,JSON.stringify(state.lots),false);}catch(e){toast('Erro ao salvar lotes');}}
 async function saveMovements(){try{await window.storage.set(STORE_MOV,JSON.stringify(state.movements),false);}catch(e){toast('Erro ao salvar histórico');}}
 async function saveSettings(){try{await window.storage.set(STORE_SETTINGS,JSON.stringify(state.settings),false);}catch(e){toast('Erro ao salvar config');}}
- 
+
 function applyTheme(){
   document.body.setAttribute('data-theme', state.settings.tema==='escuro'?'dark':'light');
   document.getElementById('themeBtn').innerHTML = state.settings.tema==='escuro' ? '&#9728;' : '&#9789;';
@@ -36,16 +36,16 @@ function applyTheme(){
   document.getElementById('todayLabel').textContent = new Date().toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'});
 }
 function toggleTheme(){state.settings.tema = state.settings.tema==='escuro'?'claro':'escuro';applyTheme();saveSettings();}
- 
+
 function productLots(pid){return state.lots.filter(function(l){return l.productId===pid;});}
 function activeLotsFEFO(pid){return productLots(pid).filter(function(l){return l.quantidade>0;}).sort(function(a,b){return a.dataValidade<b.dataValidade?-1:1;});}
 function productQty(pid){return productLots(pid).reduce(function(s,l){return s+l.quantidade;},0);}
 function nearestExpiry(pid){var lots=activeLotsFEFO(pid);return lots.length?lots[0].dataValidade:null;}
 function expiryStatus(dateStr){if(!dateStr)return 'ok';var d=daysUntil(dateStr);if(d<0)return 'danger';if(d<=7)return 'warn';return 'ok';}
 function statusLabel(dateStr){if(!dateStr)return 'Sem validade';var d=daysUntil(dateStr);if(d<0)return 'Vencido há '+Math.abs(d)+'d';if(d===0)return 'Vence hoje';return 'Vence em '+d+'d';}
- 
+
 function setView(v){currentView=v;document.querySelectorAll('.nav-item').forEach(function(n){n.classList.toggle('active',n.dataset.v===v);});document.getElementById('view').scrollTop=0;window.scrollTo(0,0);render();}
- 
+
 function render(){
   var v=document.getElementById('view');
   var fab=document.getElementById('fabBtn');
@@ -57,7 +57,7 @@ function render(){
   else if(currentView==='relatorios'){v.innerHTML=renderRelatorios();}
   else if(currentView==='config'){v.innerHTML=renderConfig();}
 }
- 
+
 function renderDashboard(){
   var totalProdutos=state.products.length;
   var totalQtd=state.lots.reduce(function(s,l){return s+l.quantidade;},0);
@@ -77,7 +77,7 @@ function renderDashboard(){
   var totGasto=state.lots.reduce(function(s,l){return s+l.valorCompra;},0);
   var valorPerdido=state.movements.filter(function(m){return m.type==='saida'&&m.motivo==='perda';}).reduce(function(s,m){return s+m.valor;},0);
   var lucro=totVendido-totGasto-valorPerdido;
- 
+
   var alertsHtml='';
   var allAlerts=vencidos.map(function(l){return {lot:l,st:'danger'};}).concat(proximos.map(function(l){return {lot:l,st:'warn'};}));
   if(allAlerts.length===0 && baixos.length===0){
@@ -91,7 +91,7 @@ function renderDashboard(){
       alertsHtml+='<div class="alert-row"><span class="dot warn"></span><div class="txt"><div class="n">'+esc(p.nome)+'</div><div class="s">Estoque baixo &middot; '+productQty(p.id)+' '+esc(p.unidade)+'</div></div></div>';
     });
   }
- 
+
   return ''+
   '<div class="grid2 section-title" style="margin-top:8px;"></div>'+
   '<div class="grid2">'+
@@ -115,7 +115,7 @@ function renderDashboard(){
   '<div class="card">'+alertsHtml+'</div>';
 }
 function metric(label,value,cls){return '<div class="metric"><div class="label">'+label+'</div><div class="value '+(cls||'')+'">'+value+'</div></div>';}
- 
+
 function drawDashboardChart(){
   var el=document.getElementById('dashChart');if(!el||typeof Chart==='undefined')return;
   var days=[],entradas=[],saidas=[];
@@ -133,7 +133,7 @@ function drawDashboardChart(){
     {label:'Saídas',data:saidas,backgroundColor:'#D64545',borderRadius:4}
   ]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{precision:0}}},plugins:{legend:{display:true,position:'top',labels:{boxWidth:10,font:{size:11}}}}}});
 }
- 
+
 function renderEstoque(){
   var filtered=state.products.filter(function(p){
     var q=searchQuery.toLowerCase();
@@ -157,7 +157,7 @@ function renderEstoque(){
   return html;
 }
 function chip(val,label){return '<div class="chip '+(estoqueFilter===val?'active':'')+'" onclick="estoqueFilter=\''+val+'\';render();">'+label+'</div>';}
- 
+
 function renderProductCard(p){
   var q=productQty(p.id);
   var exp=nearestExpiry(p.id);
@@ -188,9 +188,9 @@ function renderProductCard(p){
   html+='</div>';
   return html;
 }
- 
+
 function openSearch(){setView('estoque');setTimeout(function(){var el=document.getElementById('estoqueSearch');if(el)el.focus();},50);}
- 
+
 function openModal(title,bodyHtml){
   var root=document.getElementById('modalRoot');
   root.innerHTML='<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal">'+
@@ -199,7 +199,7 @@ function openModal(title,bodyHtml){
   '</div></div>';
 }
 function closeModal(){document.getElementById('modalRoot').innerHTML='';}
- 
+
 function openProductForm(pid,prefill){
   var p=pid?state.products.find(function(x){return x.id===pid;}):null;
   var pf=prefill||{};
@@ -286,13 +286,14 @@ async function deleteProduct(pid){
   await saveProducts();await saveLots();
   closeModal();render();toast('Produto excluído');
 }
- 
+
 var scannedItems=[];
 function openScanNota(){
   var body='<div id="scanArea">'+
-    '<div class="help-note">Tire uma foto da nota fiscal ou recibo de compra. A IA vai identificar os produtos, quantidades e valores — preço de venda, lote, fabricação e validade você completa depois, item por item.</div>'+
+    '<div class="help-note">Envie uma foto ou um PDF da nota fiscal/recibo de compra. A IA vai identificar os produtos, quantidades e valores — preço de venda, lote, fabricação e validade você completa depois, item por item.</div>'+
     '<div class="photo-input" style="margin-top:10px;"><div class="photo-preview" id="notaPreview" style="width:64px;height:64px;">&#128247;</div>'+
-    '<input type="file" accept="image/*" capture="environment" id="notaFile" style="width:auto;flex:1;"></div>'+
+    '<input type="file" accept="image/*,application/pdf" id="notaFile" style="width:auto;flex:1;"></div>'+
+    '<div id="notaFileName" style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;"></div>'+
     '<button class="btn btn-accent" style="margin-top:16px;" id="notaAnalyzeBtn" onclick="analyzeNota()" disabled>Analisar nota</button>'+
     '<div id="scanResult"></div>'+
     '</div>';
@@ -303,14 +304,20 @@ function openScanNota(){
     var reader=new FileReader();
     reader.onload=function(ev){
       window._notaImageData=ev.target.result;
-      document.getElementById('notaPreview').innerHTML='<img src="'+window._notaImageData+'">';
+      if(file.type==='application/pdf'){
+        document.getElementById('notaPreview').innerHTML='&#128196;';
+        document.getElementById('notaFileName').textContent=file.name;
+      }else{
+        document.getElementById('notaPreview').innerHTML='<img src="'+window._notaImageData+'">';
+        document.getElementById('notaFileName').textContent=file.name;
+      }
       document.getElementById('notaAnalyzeBtn').disabled=false;
     };
     reader.readAsDataURL(file);
   };
 }
 async function analyzeNota(){
-  if(!window._notaImageData){toast('Selecione uma foto primeiro');return;}
+  if(!window._notaImageData){toast('Selecione uma foto ou PDF primeiro');return;}
   var btn=document.getElementById('notaAnalyzeBtn');
   btn.disabled=true;btn.textContent='Analisando nota...';
   document.getElementById('scanResult').innerHTML='';
@@ -318,6 +325,10 @@ async function analyzeNota(){
     var parts=window._notaImageData.split(',');
     var mediaType=parts[0].match(/data:(.*);base64/)[1];
     var base64Data=parts[1];
+    var isPdf=mediaType==='application/pdf';
+    var fileBlock=isPdf
+      ?{type:'document',source:{type:'base64',media_type:'application/pdf',data:base64Data}}
+      :{type:'image',source:{type:'base64',media_type:mediaType,data:base64Data}};
     var response=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -327,8 +338,8 @@ async function analyzeNota(){
         messages:[{
           role:'user',
           content:[
-            {type:'image',source:{type:'base64',media_type:mediaType,data:base64Data}},
-            {type:'text',text:'Esta imagem é uma nota fiscal ou recibo de compra. Extraia os itens/produtos comprados. Responda APENAS com um JSON válido (sem markdown, sem texto antes ou depois), no formato: [{"nome":"string","quantidade":number,"valorUnitario":number,"unidade":"un/kg/L/etc","marca":"string ou vazio","categoria":"string ou vazio"}]. Se não conseguir identificar algum campo, use string vazia ou 0. Se a imagem não parecer uma nota fiscal, responda com um array vazio [].'}
+            fileBlock,
+            {type:'text',text:'Este arquivo é uma nota fiscal ou recibo de compra. Extraia os itens/produtos comprados. Responda APENAS com um JSON válido (sem markdown, sem texto antes ou depois), no formato: [{"nome":"string","quantidade":number,"valorUnitario":number,"unidade":"un/kg/L/etc","marca":"string ou vazio","categoria":"string ou vazio"}]. Se não conseguir identificar algum campo, use string vazia ou 0. Se o arquivo não parecer uma nota fiscal, responda com um array vazio [].'}
           ]
         }]
       })
@@ -341,7 +352,7 @@ async function analyzeNota(){
     scannedItems=items;
     renderScanResults();
   }catch(err){
-    document.getElementById('scanResult').innerHTML='<div class="help-note">Não consegui ler a nota automaticamente. Tente uma foto mais nítida, com boa luz, ou cadastre o produto manualmente.</div>';
+    document.getElementById('scanResult').innerHTML='<div class="help-note">Não consegui ler a nota automaticamente. Tente um arquivo mais nítido/legível, ou cadastre o produto manualmente.</div>';
   }
   btn.disabled=false;btn.textContent='Analisar nota';
 }
@@ -371,7 +382,7 @@ function useScannedItem(i){
     valorTotalLote:it.valorUnitario&&it.quantidade?(it.valorUnitario*it.quantidade).toFixed(2):''
   });
 }
- 
+
 function openEntradaForm(pid){
   var p=state.products.find(function(x){return x.id===pid;});
   var body='<div>'+
@@ -406,7 +417,7 @@ async function saveEntrada(pid){
   await saveLots();await saveMovements();
   closeModal();render();toast('Entrada registrada');
 }
- 
+
 function openSaidaForm(pid){
   var p=state.products.find(function(x){return x.id===pid;});
   var q=productQty(p.id);
@@ -442,14 +453,14 @@ async function saveSaida(pid){
   await saveLots();await saveMovements();
   closeModal();render();toast('Saída registrada');
 }
- 
+
 function renderFinanceiro(){
   var totVendido=state.movements.filter(function(m){return m.type==='saida'&&m.motivo==='venda';}).reduce(function(s,m){return s+m.valor;},0);
   var totGasto=state.lots.reduce(function(s,l){return s+l.valorCompra;},0);
   var valorPerdido=state.movements.filter(function(m){return m.type==='saida'&&m.motivo==='perda';}).reduce(function(s,m){return s+m.valor;},0);
   var lucro=totVendido-totGasto-valorPerdido;
   var perdas=state.movements.filter(function(m){return m.type==='saida'&&m.motivo==='perda';}).sort(function(a,b){return b.timestamp-a.timestamp;});
- 
+
   var html='<div class="grid2">'+
     metric('Total vendido',fmtMoney(totVendido),'ok')+
     metric('Total gasto (compras)',fmtMoney(totGasto),'')+
@@ -509,7 +520,7 @@ function drawFinanceCharts(){
     }
   }
 }
- 
+
 var relatorioTab='historico';
 function renderRelatorios(){
   var html='<div class="tabs">'+
@@ -574,7 +585,7 @@ function exportCSV(){
   URL.revokeObjectURL(url);
   toast('CSV exportado');
 }
- 
+
 function renderConfig(){
   var s=state.settings;
   var html='<div class="card">'+
@@ -636,5 +647,5 @@ document.addEventListener('change',function(e){
     reader.readAsText(file);
   }
 });
- 
+
 loadAll();

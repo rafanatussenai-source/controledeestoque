@@ -1,9 +1,9 @@
-var STORE_PRODUCTS='estoque:products', STORE_LOTS='estoque:lots', STORE_MOV='estoque:movements', STORE_SETTINGS='estoque:settings';
 var state={products:[],lots:[],movements:[],settings:{alertDays:[30,15,7,3,1],estoqueMinimoPadrao:5,tema:'claro',nomeUsuario:'',moeda:'BRL'}};
 var currentView='dashboard';
 var openLotProduct=null;
 var searchQuery='';
 var estoqueFilter='todos';
+var currentUser=null;
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
 function todayISO(){var d=new Date();return d.toISOString().slice(0,10);}
@@ -14,89 +14,75 @@ function fmtMoney(v){v=isFinite(v)?v:0;return currSymbol()+' '+v.toLocaleString(
 function toast(msg){var t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove();},2200);}
 function esc(s){return (s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 
-function loadAll(){
-  try {
-    var p = localStorage.getItem(STORE_PRODUCTS);
-    state.products = p ? JSON.parse(p) : [];
-  } catch(e) {
-    state.products = [];
-  }
-
-  try {
-    var l = localStorage.getItem(STORE_LOTS);
-    state.lots = l ? JSON.parse(l) : [];
-  } catch(e) {
-    state.lots = [];
-  }
-
-  try {
-    var m = localStorage.getItem(STORE_MOV);
-    state.movements = m ? JSON.parse(m) : [];
-  } catch(e) {
-    state.movements = [];
-  }
-
-  try {
-    var s = localStorage.getItem(STORE_SETTINGS);
-    if(s) {
-      state.settings = Object.assign(
-        state.settings,
-        JSON.parse(s)
-      );
+/* ---------- Autenticação (Firebase) ---------- */
+function initAuth(){
+  auth.onAuthStateChanged(function(user){
+    if(user){
+      currentUser=user;
+      document.getElementById('authScreen').style.display='none';
+      document.getElementById('app').style.display='block';
+      loadAll();
+    }else{
+      currentUser=null;
+      document.getElementById('authScreen').style.display='block';
+      document.getElementById('app').style.display='none';
     }
-  } catch(e) {}
+  });
+}
+function authErr(msg){var el=document.getElementById('authError');if(el)el.textContent=msg;}
+function traduzErroAuth(code){
+  var m={
+    'auth/invalid-email':'Email inválido.',
+    'auth/user-not-found':'Não existe conta com esse email.',
+    'auth/wrong-password':'Senha incorreta.',
+    'auth/invalid-credential':'Email ou senha incorretos.',
+    'auth/email-already-in-use':'Já existe uma conta com esse email.',
+    'auth/weak-password':'A senha precisa ter pelo menos 6 caracteres.',
+    'auth/missing-password':'Digite uma senha.'
+  };
+  return m[code]||'Não foi possível entrar. Tente novamente.';
+}
+function doLogin(){
+  var email=document.getElementById('auth_email').value.trim();
+  var pass=document.getElementById('auth_pass').value;
+  authErr('');
+  if(!email||!pass){authErr('Preencha email e senha.');return;}
+  auth.signInWithEmailAndPassword(email,pass).catch(function(e){authErr(traduzErroAuth(e.code));});
+}
+function doSignup(){
+  var email=document.getElementById('auth_email').value.trim();
+  var pass=document.getElementById('auth_pass').value;
+  authErr('');
+  if(!email||!pass){authErr('Preencha email e senha.');return;}
+  auth.createUserWithEmailAndPassword(email,pass).catch(function(e){authErr(traduzErroAuth(e.code));});
+}
+function doLogout(){auth.signOut();}
 
+/* ---------- Dados (Firestore, um documento por usuário) ---------- */
+function userDocRef(){return db.collection('usuarios').doc(currentUser.uid);}
+
+async function loadAll(){
+  try{
+    var snap=await userDocRef().get();
+    if(snap.exists){
+      var d=snap.data();
+      state.products=d.products||[];
+      state.lots=d.lots||[];
+      state.movements=d.movements||[];
+      state.settings=Object.assign(state.settings,d.settings||{});
+    }else{
+      state.products=[];state.lots=[];state.movements=[];
+      await userDocRef().set({products:[],lots:[],movements:[],settings:state.settings});
+    }
+  }catch(e){toast('Erro ao carregar dados');state.products=[];state.lots=[];state.movements=[];}
   applyTheme();
   render();
 }
+async function saveProducts(){try{await userDocRef().update({products:state.products});}catch(e){toast('Erro ao salvar produtos');}}
+async function saveLots(){try{await userDocRef().update({lots:state.lots});}catch(e){toast('Erro ao salvar lotes');}}
+async function saveMovements(){try{await userDocRef().update({movements:state.movements});}catch(e){toast('Erro ao salvar histórico');}}
+async function saveSettings(){try{await userDocRef().update({settings:state.settings});}catch(e){toast('Erro ao salvar config');}}
 
-function saveProducts(){
-  try {
-    localStorage.setItem(
-      STORE_PRODUCTS,
-      JSON.stringify(state.products)
-    );
-  } catch(e) {
-    console.error('Erro ao salvar produtos:', e);
-    toast('Erro ao salvar produtos');
-  }
-}
-
-function saveLots(){
-  try {
-    localStorage.setItem(
-      STORE_LOTS,
-      JSON.stringify(state.lots)
-    );
-  } catch(e) {
-    console.error('Erro ao salvar lotes:', e);
-    toast('Erro ao salvar lotes');
-  }
-}
-
-function saveMovements(){
-  try {
-    localStorage.setItem(
-      STORE_MOV,
-      JSON.stringify(state.movements)
-    );
-  } catch(e) {
-    console.error('Erro ao salvar histórico:', e);
-    toast('Erro ao salvar histórico');
-  }
-}
-
-function saveSettings(){
-  try {
-    localStorage.setItem(
-      STORE_SETTINGS,
-      JSON.stringify(state.settings)
-    );
-  } catch(e) {
-    console.error('Erro ao salvar configurações:', e);
-    toast('Erro ao salvar configurações');
-  }
-}
 function applyTheme(){
   document.body.setAttribute('data-theme', state.settings.tema==='escuro'?'dark':'light');
   document.getElementById('themeBtn').innerHTML = state.settings.tema==='escuro' ? '&#9728;' : '&#9789;';
@@ -207,7 +193,7 @@ function drawDashboardChart(){
 function renderEstoque(){
   var filtered=state.products.filter(function(p){
     var q=searchQuery.toLowerCase();
-    var matchQ=!q || p.nome.toLowerCase().indexOf(q)>-1 || (p.categoria||'').toLowerCase().indexOf(q)>-1 || productLots(p.id).some(function(l){return l.numero.toLowerCase().indexOf(q)>-1;});
+    var matchQ=!q || p.nome.toLowerCase().indexOf(q)>-1 || (p.categoria||'').toLowerCase().indexOf(q)>-1 || (p.codigoBarras||'').toLowerCase().indexOf(q)>-1 || productLots(p.id).some(function(l){return l.numero.toLowerCase().indexOf(q)>-1;});
     if(!matchQ)return false;
     if(estoqueFilter==='baixo') return productQty(p.id)<=p.estoqueMinimo;
     if(estoqueFilter==='vencendo') return activeLotsFEFO(p.id).some(function(l){var d=daysUntil(l.dataValidade);return d<=7&&d>=0;});
@@ -269,27 +255,26 @@ function openModal(title,bodyHtml){
 }
 function closeModal(){document.getElementById('modalRoot').innerHTML='';}
 
-function openProductForm(pid,prefill){
+function openProductForm(pid){
   var p=pid?state.products.find(function(x){return x.id===pid;}):null;
-  var pf=prefill||{};
   var loteFields='';
   if(!p){
     loteFields=
     '<label>Número do lote *</label><input id="f_lote_num" placeholder="Ex: L-001, impresso na embalagem">'+
-    '<div class="row2"><div><label>Quantidade inicial *</label><input id="f_lote_qtd" type="number" min="0" step="0.01" value="'+(pf.quantidade||'')+'"></div>'+
-    '<div><label>Valor de compra (total do lote)</label><input id="f_lote_valor" type="number" min="0" step="0.01" value="'+(pf.valorTotalLote||'')+'"></div></div>'+
+    '<div class="row2"><div><label>Quantidade inicial *</label><input id="f_lote_qtd" type="number" min="0" step="0.01"></div>'+
+    '<div><label>Valor de compra (total do lote)</label><input id="f_lote_valor" type="number" min="0" step="0.01"></div></div>'+
     '<div class="row2"><div><label>Data de fabricação *</label><input id="f_lote_fab" type="date"></div>'+
     '<div><label>Data de validade *</label><input id="f_lote_val" type="date"></div></div>';
   }
   var body='<div id="prodForm">'+
-    (prefill?'<div class="help-note">Dados lidos da nota — confira antes de salvar e complete o que faltar.</div>':'')+
-    '<label>Nome do produto *</label><input id="f_nome" value="'+esc(p?p.nome:(pf.nome||''))+'" placeholder="Ex: Arroz 5kg">'+
-    '<div class="row2"><div><label>Categoria</label><input id="f_categoria" value="'+esc(p?p.categoria:(pf.categoria||''))+'" placeholder="Ex: Grãos"></div>'+
-    '<div><label>Marca</label><input id="f_marca" value="'+esc(p?p.marca:(pf.marca||''))+'" placeholder="Opcional"></div></div>'+
-    '<div class="row2"><div><label>Unidade de medida</label><input id="f_unidade" value="'+esc(p?p.unidade:(pf.unidade||'un'))+'" placeholder="un, kg, L..."></div>'+
+    '<label>Nome do produto *</label><input id="f_nome" value="'+esc(p?p.nome:'')+'" placeholder="Ex: Arroz 5kg">'+
+    '<div class="row2"><div><label>Categoria</label><input id="f_categoria" value="'+esc(p?p.categoria:'')+'" placeholder="Ex: Grãos"></div>'+
+    '<div><label>Marca</label><input id="f_marca" value="'+esc(p?p.marca:'')+'" placeholder="Opcional"></div></div>'+
+    '<div class="row2"><div><label>Unidade de medida</label><input id="f_unidade" value="'+esc(p?p.unidade:'un')+'" placeholder="un, kg, L..."></div>'+
     '<div><label>Estoque mínimo</label><input id="f_min" type="number" min="0" value="'+(p?p.estoqueMinimo:state.settings.estoqueMinimoPadrao)+'"></div></div>'+
-    '<div class="row2"><div><label>Preço de compra (unitário)</label><input id="f_pcompra" type="number" min="0" step="0.01" value="'+(p?p.precoCompra:(pf.precoCompra||''))+'"></div>'+
+    '<div class="row2"><div><label>Preço de compra (unitário)</label><input id="f_pcompra" type="number" min="0" step="0.01" value="'+(p?p.precoCompra:'')+'"></div>'+
     '<div><label>Preço de venda</label><input id="f_pvenda" type="number" min="0" step="0.01" value="'+(p?p.precoVenda:'')+'"></div></div>'+
+    '<label>Código de barras</label><input id="f_codigo" value="'+esc(p?p.codigoBarras:'')+'" placeholder="Opcional — digite ou leia manualmente">'+
     (p?'':'<div class="section-title" style="margin:16px 0 6px;">Primeiro lote deste produto</div>'+loteFields)+
     '<label>Foto do produto</label>'+
     '<div class="photo-input"><div class="photo-preview" id="photoPreview">'+(p&&p.foto?'<img src="'+p.foto+'">':'&#128247;')+'</div><input type="file" accept="image/*" id="f_foto" style="width:auto;flex:1;"></div>'+
@@ -319,6 +304,7 @@ async function saveProductForm(pid){
     estoqueMinimo:parseFloat(document.getElementById('f_min').value)||0,
     precoCompra:parseFloat(document.getElementById('f_pcompra').value)||0,
     precoVenda:parseFloat(document.getElementById('f_pvenda').value)||0,
+    codigoBarras:document.getElementById('f_codigo').value.trim(),
     observacoes:document.getElementById('f_obs').value.trim(),
     foto:window._pendingPhoto?window._pendingPhoto():null
   };
@@ -560,6 +546,11 @@ function exportCSV(){
 function renderConfig(){
   var s=state.settings;
   var html='<div class="card">'+
+    '<div class="card-title">Conta</div>'+
+    '<div class="settings-row"><div class="l"><div class="t">Logado como</div><div class="d">'+esc(currentUser?currentUser.email:'')+'</div></div></div>'+
+    '<button class="btn btn-danger-o" style="margin-top:10px;" onclick="doLogout()">Sair da conta</button>'+
+  '</div>'+
+  '<div class="card">'+
     '<div class="card-title">Perfil</div>'+
     '<label>Nome do usuário</label><input id="c_nome" value="'+esc(s.nomeUsuario)+'" placeholder="Seu nome">'+
     '<label>Moeda</label><select id="c_moeda"><option value="BRL"'+(s.moeda==='BRL'?' selected':'')+'>Real (R$)</option><option value="USD"'+(s.moeda==='USD'?' selected':'')+'>Dólar (US$)</option><option value="EUR"'+(s.moeda==='EUR'?' selected':'')+'>Euro (€)</option></select>'+
@@ -581,7 +572,7 @@ function renderConfig(){
     '<label style="margin-top:12px;">Restaurar de um arquivo de backup</label>'+
     '<input type="file" accept="application/json" id="c_restore" style="width:auto;">'+
   '</div>'+
-  '<div class="help-note">Este protótipo roda no navegador. Sincronização automática na nuvem, notificações push nativas e leitura de código de barras pela câmera exigem o app nativo (Flutter) — posso gerar esse código-fonte quando você quiser avançar para a versão nativa.</div>';
+  '<div class="help-note">Seus dados ficam salvos na nuvem, vinculados à sua conta. Você pode acessar de qualquer aparelho fazendo login com o mesmo email.</div>';
   return html;
 }
 async function saveConfig(){
@@ -619,4 +610,4 @@ document.addEventListener('change',function(e){
   }
 });
 
-loadAll();
+initAuth();

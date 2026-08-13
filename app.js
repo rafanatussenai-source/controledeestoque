@@ -14,19 +14,89 @@ function fmtMoney(v){v=isFinite(v)?v:0;return currSymbol()+' '+v.toLocaleString(
 function toast(msg){var t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove();},2200);}
 function esc(s){return (s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 
-async function loadAll(){
-  try{var p=await window.storage.get(STORE_PRODUCTS,false);state.products=p?JSON.parse(p.value):[];}catch(e){state.products=[];}
-  try{var l=await window.storage.get(STORE_LOTS,false);state.lots=l?JSON.parse(l.value):[];}catch(e){state.lots=[];}
-  try{var m=await window.storage.get(STORE_MOV,false);state.movements=m?JSON.parse(m.value):[];}catch(e){state.movements=[];}
-  try{var s=await window.storage.get(STORE_SETTINGS,false);if(s)state.settings=Object.assign(state.settings,JSON.parse(s.value));}catch(e){}
+function loadAll(){
+  try {
+    var p = localStorage.getItem(STORE_PRODUCTS);
+    state.products = p ? JSON.parse(p) : [];
+  } catch(e) {
+    state.products = [];
+  }
+
+  try {
+    var l = localStorage.getItem(STORE_LOTS);
+    state.lots = l ? JSON.parse(l) : [];
+  } catch(e) {
+    state.lots = [];
+  }
+
+  try {
+    var m = localStorage.getItem(STORE_MOV);
+    state.movements = m ? JSON.parse(m) : [];
+  } catch(e) {
+    state.movements = [];
+  }
+
+  try {
+    var s = localStorage.getItem(STORE_SETTINGS);
+    if(s) {
+      state.settings = Object.assign(
+        state.settings,
+        JSON.parse(s)
+      );
+    }
+  } catch(e) {}
+
   applyTheme();
   render();
 }
-async function saveProducts(){try{await window.storage.set(STORE_PRODUCTS,JSON.stringify(state.products),false);}catch(e){toast('Erro ao salvar produtos');}}
-async function saveLots(){try{await window.storage.set(STORE_LOTS,JSON.stringify(state.lots),false);}catch(e){toast('Erro ao salvar lotes');}}
-async function saveMovements(){try{await window.storage.set(STORE_MOV,JSON.stringify(state.movements),false);}catch(e){toast('Erro ao salvar histórico');}}
-async function saveSettings(){try{await window.storage.set(STORE_SETTINGS,JSON.stringify(state.settings),false);}catch(e){toast('Erro ao salvar config');}}
 
+function saveProducts(){
+  try {
+    localStorage.setItem(
+      STORE_PRODUCTS,
+      JSON.stringify(state.products)
+    );
+  } catch(e) {
+    console.error('Erro ao salvar produtos:', e);
+    toast('Erro ao salvar produtos');
+  }
+}
+
+function saveLots(){
+  try {
+    localStorage.setItem(
+      STORE_LOTS,
+      JSON.stringify(state.lots)
+    );
+  } catch(e) {
+    console.error('Erro ao salvar lotes:', e);
+    toast('Erro ao salvar lotes');
+  }
+}
+
+function saveMovements(){
+  try {
+    localStorage.setItem(
+      STORE_MOV,
+      JSON.stringify(state.movements)
+    );
+  } catch(e) {
+    console.error('Erro ao salvar histórico:', e);
+    toast('Erro ao salvar histórico');
+  }
+}
+
+function saveSettings(){
+  try {
+    localStorage.setItem(
+      STORE_SETTINGS,
+      JSON.stringify(state.settings)
+    );
+  } catch(e) {
+    console.error('Erro ao salvar configurações:', e);
+    toast('Erro ao salvar configurações');
+  }
+}
 function applyTheme(){
   document.body.setAttribute('data-theme', state.settings.tema==='escuro'?'dark':'light');
   document.getElementById('themeBtn').innerHTML = state.settings.tema==='escuro' ? '&#9728;' : '&#9789;';
